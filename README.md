@@ -1,1 +1,1 @@
-# remainder-tower
+# jouyo_insu_theorem
