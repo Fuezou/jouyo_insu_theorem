@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>剰余の塔 〜代入の剣で多項式を断て〜</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg0:#0b1230; --bg1:#1a1147; --ink:#ffffff; --gold:#f4c95d;
+    --good:#6bd968; --bad:#ff6b6b; --info:#6fd6ff; --dim:#8aa0c8;
+    --win:#000814; --border:#ffffff;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:'DotGothic16','MS Gothic',monospace;
+    background:
+      radial-gradient(circle at 50% -10%, #2a1f6e 0%, transparent 55%),
+      linear-gradient(160deg,var(--bg0),var(--bg1) 60%,#050817 100%);
+    background-attachment:fixed;
+    color:var(--ink);
+    min-height:100%;
+    display:flex; align-items:flex-start; justify-content:center;
+    line-height:1.7; letter-spacing:.02em;
+    overflow-x:hidden;
+  }
+  /* 微細なドットグリッドの空気感 */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+    background-size:14px 14px; opacity:.5;
+  }
+  #app{
+    position:relative; z-index:1;
+    width:100%; max-width:520px; min-height:100vh;
+    padding:14px 12px 28px; display:flex; flex-direction:column; gap:12px;
+  }
+  /* ===== DQ風ウィンドウ ===== */
+  .win{
+    background:var(--win);
+    border:3px solid var(--border);
+    border-radius:8px;
+    box-shadow:0 0 0 2px #000 inset, 0 4px 0 rgba(0,0,0,.5);
+    padding:14px 16px;
+  }
+  .win.tight{padding:10px 12px;}
+  h1,h2,h3{margin:0; font-weight:normal;}
+  .title-screen{display:flex;flex-direction:column;gap:14px;text-align:center;align-items:center;justify-content:center;flex:1;min-height:80vh;}
+  .game-title{
+    font-size:clamp(30px,9vw,46px); color:var(--gold);
+    text-shadow:3px 3px 0 #000, 0 0 18px rgba(244,201,93,.5);
+    line-height:1.25; margin-top:6vh;
+  }
+  .subtitle{color:var(--info); font-size:14px;}
+  .blurb{color:var(--dim); font-size:13px; max-width:340px;}
+  .pill{display:inline-block;border:2px solid var(--gold);color:var(--gold);border-radius:20px;padding:2px 12px;font-size:12px;}
+
+  /* メニュー / 階層リスト */
+  .floor-btn{
+    display:flex; align-items:center; gap:12px;
+    width:100%; text-align:left; cursor:pointer;
+    background:var(--win); color:var(--ink);
+    border:3px solid var(--border); border-radius:8px;
+    box-shadow:0 0 0 2px #000 inset; padding:12px 14px;
+    font-family:inherit; font-size:15px; transition:transform .05s;
+  }
+  .floor-btn:active{transform:translateY(2px);}
+  .floor-btn .ico{font-size:26px; width:34px; text-align:center;}
+  .floor-btn .meta{flex:1;}
+  .floor-btn .fl-no{color:var(--gold);font-size:12px;}
+  .floor-btn .fl-name{font-size:16px;}
+  .floor-btn .fl-desc{color:var(--dim);font-size:11px;line-height:1.4;}
+  .floor-btn .clr{color:var(--good);font-size:20px;}
+  .floor-btn.boss{border-color:var(--gold); box-shadow:0 0 0 2px #000 inset,0 0 14px rgba(244,201,93,.4);}
+
+  /* 戦闘上部：モンスター */
+  .stage{
+    position:relative; text-align:center; padding:18px 14px 16px;
+    background:
+      radial-gradient(circle at 50% 30%, rgba(111,214,255,.12), transparent 60%),
+      var(--win);
+    border:3px solid var(--border); border-radius:8px;
+    box-shadow:0 0 0 2px #000 inset;
+    overflow:hidden;
+  }
+  .monster-emoji{font-size:54px; line-height:1; filter:drop-shadow(0 4px 6px rgba(0,0,0,.6));}
+  .monster-name{color:var(--info); font-size:13px; margin-top:2px;}
+  .poly-card{
+    margin:10px auto 0; max-width:100%;
+    font-size:clamp(20px,6.4vw,30px); color:var(--gold);
+    text-shadow:2px 2px 0 #000; word-break:break-word;
+  }
+  .poly-card sup{font-size:.62em;}
+  .poly-label{font-size:11px;color:var(--dim);}
+  .hpbar-wrap{margin-top:12px;display:flex;align-items:center;gap:8px;justify-content:center;font-size:11px;color:var(--dim);}
+  .hpbar{width:140px;height:14px;border:2px solid #fff;background:#000;border-radius:3px;overflow:hidden;}
+  .hpbar > i{display:block;height:100%;background:linear-gradient(90deg,#39d96b,#a6f55a);transition:width .35s;}
+  .seals{margin-top:8px;font-size:12px;color:var(--gold);}
+
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(5px)}}
+  .shake{animation:shake .4s;}
+  @keyframes flashw{0%,100%{filter:none}50%{filter:brightness(2.4) drop-shadow(0 0 14px #fff)}}
+  .crit{animation:flashw .45s;}
+  @keyframes floatUp{0%{opacity:1;transform:transl(-50%,0)}100%{opacity:0;transform:translate(-50%,-46px)}}
+  .dmg{position:absolute;left:50%;top:40%;transform:translateX(-50%);font-size:30px;font-weight:bold;pointer-events:none;animation:floatUp .9s forwards;text-shadow:2px 2px 0 #000;}
+  .dmg.miss{color:var(--info);} .dmg.hit{color:var(--bad);} .dmg.critd{color:var(--gold);font-size:36px;}
+
+  /* メッセージ窓 */
+  .msg{min-height:74px; font-size:15px; position:relative;}
+  .msg .cursor{position:absolute; right:10px; bottom:6px; color:var(--gold); animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .msg b.good{color:var(--good);} .msg b.bad{color:var(--bad);} .msg b.gold{color:var(--gold);} .msg b.info{color:var(--info);}
+
+  /* コマンド */
+  .cmds{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .cmds.one{grid-template-columns:1fr;}
+  .cmd{
+    cursor:pointer; font-family:inherit; font-size:16px;
+    background:var(--win); color:var(--ink);
+    border:3px solid var(--border); border-radius:8px;
+    box-shadow:0 0 0 2px #000 inset; padding:14px 8px;
+    transition:transform .05s, background .1s, color .1s;
+    min-height:52px; display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;
+  }
+  .cmd:active{transform:translateY(2px);}
+  .cmd.sel,.cmd:hover{background:#fff;color:#000;}
+  .cmd.sel::before,.cmd:hover::before{content:"▶ ";color:#000;}
+  .cmd.wide{grid-column:1 / -1;}
+  .cmd.finish{border-color:var(--gold);color:var(--gold);}
+  .cmd.finish:hover,.cmd.finish:active{background:var(--gold);color:#000;}
+  .cmd.correct{background:var(--good)!important;color:#062;border-color:var(--good);}
+  .cmd.wrong{background:var(--bad)!important;color:#400;border-color:var(--bad);}
+  .cmd.small{font-size:15px;padding:12px 4px;min-height:46px;}
+
+  .frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;line-height:1;margin:0 1px;}
+  .frac .n{border-bottom:2px solid currentColor;padding:0 3px 1px;}
+  .frac .d{padding:1px 3px 0;}
+
+  .top-bar{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--dim);}
+  .top-bar .lvl{color:var(--gold);}
+  .icon-btn{background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;font-family:inherit;}
+  .center{text-align:center;}
+  .hint{font-size:12px;color:var(--info);background:rgba(111,214,255,.08);border-left:3px solid var(--info);padding:8px 10px;border-radius:4px;}
+  .scroll-body{font-size:13px;color:#dce6ff;}
+  .scroll-body .k{color:var(--gold);}
+  .scroll-body hr{border:none;border-top:1px dashed #3a4a78;margin:12px 0;}
+  .result-rank{font-size:60px;color:var(--gold);text-shadow:3px 3px 0 #000;}
+  .small-note{font-size:11px;color:var(--dim);}
+  .progress-line{font-size:12px;color:var(--dim);text-align:center;}
+  .fadein{animation:fade .4s ease both;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  a.link{color:var(--info);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   多項式エンジン（Nodeで単体検証済み）
+   coeffs は [高次, …, 低次]。例: x³−6x²+11x−6 → [1,-6,11,-6]
+   ============================================================ */
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a||1;}
+function evalPoly(c,x){return c.reduce((a,k)=>a*x+k,0);}
+function deg(c){return c.length-1;}
+function divisors(n){n=Math.abs(n);const d=[];for(let i=1;i<=n;i++)if(n%i===0)d.push(i);return d;}
+// 整数係数Pを p/q で評価した分子（整数）。0なら (qx−p) は因数
+function numerAt(c,p,q){const n=c.length-1;let s=0;for(let i=0;i<c.length;i++)s+=c[i]*Math.pow(p,n-i)*Math.pow(q,i);return s;}
+// 余り P(p/q) を既約分数で
+function remFrac(c,p,q){const n=c.length-1;let num=numerAt(c,p,q),den=Math.pow(q,n);const g=gcd(num,den);num/=g;den/=g;if(den<0){den=-den;num=-num;}return{num,den};}
+// 一次式 (Ax+B) で割る。割り切れれば quotient は整数
+function divLinear(c,A,B){const w=c.slice(),q=[];for(let i=0;i<c.length-1;i++){const t=w[i]/A;q.push(t);w[i+1]-=t*B;}return{quotient:q,remainder:w[w.length-1]};}
+// ± p/q 既約・重複なし・昇順
+function candidates(c){
+  const lead=c[0],cons=c[c.length-1];
+  if(cons===0)return [{num:0,den:1}];
+  const ps=divisors(cons),qs=divisors(lead),m=new Map();
+  for(const p of ps)for(const q of qs){const g=gcd(p,q),nu=p/g,de=q/g;for(const s of[1,-1]){const k=(s*nu)+'/'+de;if(!m.has(k))m.set(k,{num:s*nu,den:de});}}
+  return [...m.values()].sort((a,b)=>a.num/a.den-b.num/b.den);
+}
+function mul(a,b){const r=new Array(a.length+b.length-1).fill(0);for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)r[i+j]+=a[i]*b[j];return r;}
+function lin(r){return[1,-r];}            // (x−r)
+function linAB(a,b){return[a,-b];}        // (ax−b)
+// 既約判定（有理根を持たない）
+function irreducibleQ(c){if(c.length-1<2)return false;return !candidates(c).some(o=>numerAt(c,o.num,o.den)===0);}
+
+/* ---- 表示 ---- */
+function fmt(c){ // 多項式 → HTML（<sup>でべき乗）
+  const d=c.length-1; const t=[];
+  for(let i=0;i<c.length;i++){const co=c[i],p=d-i;if(co===0)continue;
+    const sign=co>0?'+':'−', ab=Math.abs(co);
+    const cs=(ab===1&&p!==0)?'':ab;
+    const xs=p===0?'':(p===1?'x':'x<sup>'+p+'</sup>');
+    t.push({sign,body:cs+xs});}
+  if(!t.length)return '0';
+  let out='';t.forEach((x,i)=>{out+= i===0?((x.sign==='−'?'−':'')+x.body):(' '+x.sign+' '+x.body);});
+  return out;
+}
+function frac(num,den){ if(den===1)return ''+num; const neg=num<0; return (neg?'−':'')+'<span class="frac"><span class="n">'+Math.abs(num)+'</span><span class="d">'+den+'</span></span>'; }
+function candLabel(o){return o.den===1?(''+o.num):'<span class="frac"><span class="n">'+o.num+'</span><span class="d">'+o.den+'</span></span>';}
+function candPlain(o){return o.den===1?(''+o.num):(o.num+'/'+o.den);}
+// 根 num/den（den>0）に対応する因数 (den·x − num) を整形
+function factorStr(num,den){
+  const cs = den===1?'x':(den+'x');
+  let tail = num>0?(' − '+num):(num<0?(' + '+(-num)):'');
+  return '('+cs+tail+')';
+}
+/* utils */
+function ri(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function uniq(a){return [...new Set(a)];}
+
+/* ============================================================
+   サウンド（極小・ミュート可）
+   ============================================================ */
+var AC=null, muted=false;
+function ac(){ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} return AC; }
+function beep(freq,dur,type){ if(muted)return; const c=ac(); if(!c)return;
+  try{const o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.value=freq;
+  g.gain.setValueAtTime(.06,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);
+  o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+var sfx={sel:()=>beep(660,.05),ok:()=>{beep(880,.08);setTimeout(()=>beep(1320,.12),80);},
+  no:()=>beep(160,.18,'sawtooth'),crit:()=>{beep(523,.06);setTimeout(()=>beep(784,.06),60);setTimeout(()=>beep(1046,.18),120);},
+  win:()=>{[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.16),i*120));}};
+
+/* ============================================================
+   ゲーム状態 & 画面管理
+   ============================================================ */
+const app=document.getElementById('app');
+const progress={1:false,2:false,3:false,4:false};
+const monsters=['🟣','👾','🦠','👹','🐲','🧫','🟢','👻','🩻'];
+const monNames=['スライム多項式','ファクター・ゴースト','ジョーヨ・スライム','次数のドラゴン','根なしオーガ','分数キメラ'];
+
+function setScreen(html){app.innerHTML=html; window.scrollTo(0,0);}
+function el(id){return document.getElementById(id);}
+
+/* タイプライター */
+let typing=null;
+function typeMsg(node,text,cb){
+  if(typing){clearInterval(typing.iv); typing.node.innerHTML=typing.full; typing=null;}
+  node.innerHTML=''; let i=0; const full=text;
+  const done=()=>{clearInterval(typing.iv);node.innerHTML=full;node.insertAdjacentHTML('beforeend','<span class="cursor">▼</span>');typing=null;if(cb)cb();};
+  typing={iv:null,node,full,done};
+  typing.iv=setInterval(()=>{
+    // HTMLタグを飛ばしながら1文字ずつ
+    i++; let s=full.slice(0,i);
+    const open=(s.match(/</g)||[]).length, close=(s.match(/>/g)||[]).length;
+    if(open!==close){ // タグ途中なら次の > まで進める
+      const ni=full.indexOf('>',i); if(ni>=0)i=ni+1; s=full.slice(0,i);
+    }
+    node.innerHTML=s;
+    if(i>=full.length)done();
+  },18);
+  node.onclick=()=>{ if(typing)typing.done(); };
+}
+
+/* ============================================================
+   タイトル
+   ============================================================ */
+function goTitle(){
+  setScreen(`
+    <div class="title-screen fadein">
+      <div class="game-title">剰余の塔</div>
+      <div class="subtitle">〜 代入の剣で 多項式を断て 〜</div>
+      <div class="pill">剰余の定理 ＆ 因数定理</div>
+      <div class="blurb">一次式で割った余りは、ただ代入するだけで分かる。<br>その力で塔の多項式モンスターを断ち切り、頂上の謎を解け。</div>
+      <button class="cmd wide" style="max-width:240px" onclick="sfx.ok();menu()">ぼうけんを はじめる</button>
+      <button class="cmd wide" style="max-width:240px" onclick="sfx.sel();scroll0()">まなびの まきもの</button>
+      <div class="small-note">数学II / 高校数学 ・ スマホ＆PC対応</div>
+    </div>`);
+}
+
+/* ============================================================
+   まなびのまきもの（理論まとめ）
+   ============================================================ */
+function scroll0(){
+  setScreen(`
+    <div class="top-bar"><span>📜 まなびのまきもの</span><button class="icon-btn" onclick="sfx.sel();goTitle()">✕ とじる</button></div>
+    <div class="win scroll-body fadein">
+      <h3 style="color:var(--gold)">剰余の定理</h3>
+      多項式 <b class="k">P(x)</b> を <b class="k">(x − k)</b> で割った余りは <b class="k">P(k)</b> に等しい。<br>
+      一般に <b class="k">(ax − b)</b> で割った余りは <b class="k">P(b/a)</b>。<br>
+      <span style="color:var(--dim)">→ 割り算をしなくても「代入」だけで余りが出る！</span>
+      <hr>
+      <h3 style="color:var(--gold)">因数定理</h3>
+      <b class="k">P(k) = 0</b> ⟺ <b class="k">(x − k)</b> は <b class="k">P(x)</b> の因数。<br>
+      （剰余の定理で余りが 0 になった、という特別な場合）
+      <hr>
+      <h3 style="color:var(--gold)">高次式の因数分解の戦い方</h3>
+      ① 候補をしぼる：根の候補は <b class="k">±(定数項の約数)/(最高次の約数)</b>。<br>
+      ② 小さい候補から代入し、<b class="k">P(a)=0</b> になる a を探す。<br>
+      ③ 見つけたら <b class="k">(x − a)</b> で割り（組立除法）、次数を1つ下げる。<br>
+      ④ 2次まで下がったら、たすき掛けや解の公式／既約判定で仕上げる。
+      <hr>
+      <h3 style="color:var(--gold)">余りの決定（合わせ技）</h3>
+      2次式で割った余りは <b class="k">1次以下</b>なので <b class="k">R(x)=px+q</b> とおく。<br>
+      <b class="k">P(x)=(x−a)(x−b)Q(x)+px+q</b> に x=a, x=b を代入すると、<br>
+      剰余の定理から <b class="k">R(a)</b>, <b class="k">R(b)</b> の値が分かり、連立で p,q が求まる。
+    </div>
+    <button class="cmd wide" onclick="sfx.sel();goTitle()">もどる</button>`);
+}
+
+/* ============================================================
+   階層メニュー（塔）
+   ============================================================ */
+function menu(){
+  const fl=(no,ico,name,desc,fn,boss)=>`
+    <button class="floor-btn ${boss?'boss':''}" onclick="sfx.sel();${fn}">
+      <span class="ico">${ico}</span>
+      <span class="meta"><span class="fl-no">${no}</span><br><span class="fl-name">${name}</span><br><span class="fl-desc">${desc}</span></span>
+      <span class="clr">${progress[no==='最上階'?4:no.match(/\d/)[0]]?'✔':''}</span>
+    </button>`;
+  setScreen(`
+    <div class="top-bar"><span>🏯 剰余の塔</span><button class="icon-btn" onclick="sfx.sel();toggleMute()">${muted?'🔇':'🔊'}</button></div>
+    <div class="center" style="color:var(--dim);font-size:12px;margin-bottom:2px">のぼる かいを えらべ</div>
+    <div style="display:flex;flex-direction:column;gap:10px" class="fadein">
+      ${fl('第4階','🗝️','余りの決定','剰余定理の合わせ技ボス','boss()',true)}
+      ${fl('第3階','🐲','(ax−b)の余り','分数の根・非モニック分解','ch3()')}
+      ${fl('第2階','⚔️','因数定理バトル','代入で因数を見つけ完全分解','ch2()')}
+      ${fl('第1階','🚪','剰余の定理','(x−k)で割った余りを当てる','ch1()')}
+    </div>
+    <button class="cmd wide" onclick="sfx.sel();goTitle()">タイトルへ もどる</button>
+    <div class="small-note center">学習の順は 第1階 → 上 がおすすめ</div>`);
+}
+function toggleMute(){muted=!muted;menu();}
+
+/* ============================================================
+   第1階：剰余の定理ドリル（多肢選択）
+   ============================================================ */
+var ch1State;
+function ch1(){ ch1State={i:0,total:5,correct:0,tries:0}; ch1Next(); }
+function genRemainder(level){
+  const dg = level<2?2:3;
+  let c=[1]; for(let k=0;k<dg;k++)c.push(ri(-4,4));
+  if(c[c.length-1]===0)c[c.length-1]=ri(1,4); // 定数項0は避ける
+  const k=pick([-3,-2,-1,1,2,3]);
+  const ans=evalPoly(c,k);
+  // ありがちな誤答：符号ミス P(-k)、隣の値、定数項そのまま
+  let pool=[ans, evalPoly(c,-k), evalPoly(c,k)+ (k>0?2*k:-2*k), c[c.length-1], evalPoly(c,k+1)];
+  pool=uniq(pool.filter(v=>Number.isFinite(v)));
+  while(pool.length<4)pool.push(ans+ri(-7,7));
+  pool=uniq(pool);
+  let opts=[ans]; const rest=shuffle(pool.filter(v=>v!==ans));
+  for(const v of rest){if(opts.length>=4)break;opts.push(v);}
+  while(opts.length<4)opts.push(ans+ri(8,14));
+  opts=uniq(opts); while(opts.length<4)opts.push(ans+ri(15,25));
+  return {coeffs:c,k,ans,opts:shuffle(opts.slice(0,4))};
+}
+function ch1Next(){
+  if(ch1State.i>=ch1State.total){ progress[1]=true; return result('第1階クリア！','剰余の定理',ch1State.correct,ch1State.total,ch1State.tries,'ch1()'); }
+  const p=genRemainder(ch1State.i); ch1State.cur=p;
+  setScreen(`
+    <div class="top-bar"><span class="lvl">第1階 剰余の定理</span><span>${ch1State.i+1} / ${ch1State.total}</span></div>
+    <div class="stage" id="stage">
+      <div class="monster-emoji">${pick(monsters)}</div>
+      <div class="monster-name">あらわれた多項式</div>
+      <div class="poly-card">P(x) = ${fmt(p.coeffs)}</div>
+      <div class="poly-label" style="margin-top:10px">わられる相手：<b style="color:#fff">(x ${p.k>=0?'− '+p.k:'+ '+(-p.k)})</b></div>
+    </div>
+    <div class="win msg" id="msg"></div>
+    <div class="hint">剰余の定理：(x − k) で割った余りは <b>P(k)</b>。つまり x に ${p.k} を代入！</div>
+    <div class="cmds" id="cmds">
+      ${p.opts.map((o,idx)=>`<button class="cmd" id="o${idx}" onclick="ch1Answer(${o},${idx})">${o}</button>`).join('')}
+    </div>`);
+  typeMsg(el('msg'),`P(x) を <b class="info">(x ${p.k>=0?'− '+p.k:'+ '+(-p.k)})</b> で割った余りは？　代入の剣で斬れ！`);
+}
+function ch1Answer(val,idx){
+  const p=ch1State.cur; ch1State.tries++;
+  document.querySelectorAll('#cmds .cmd').forEach(b=>b.onclick=null);
+  if(val===p.ans){
+    sfx.crit(); ch1State.correct++;
+    el('o'+idx).classList.add('correct'); el('stage').classList.add('crit');
+    floatDmg('critd','HIT!');
+    typeMsg(el('msg'),`<b class="good">会心の一撃！</b> 余り＝<b class="gold">P(${p.k}) = ${p.ans}</b>。<br><span style="color:var(--dim);font-size:13px">代入だけで余りが出た。これが剰余の定理。</span>`,()=>nextBtn(()=>{ch1State.i++;ch1Next();}));
+  }else{
+    sfx.no();
+    el('o'+idx).classList.add('wrong');
+    document.querySelectorAll('#cmds .cmd').forEach(b=>{ if(Number(b.textContent)===p.ans)b.classList.add('correct'); });
+    el('stage').classList.add('shake');
+    typeMsg(el('msg'),`<b class="bad">ミス！</b> 正しくは <b class="gold">P(${p.k}) = ${p.ans}</b>。<br><span style="color:var(--dim);font-size:13px">x に ${p.k} を代入して計算してみよう。</span>`,()=>nextBtn(()=>{ch1State.i++;ch1Next();}));
+  }
+}
+
+/* ============================================================
+   第2階：因数定理バトル（核）
+   ============================================================ */
+const irrQuads=[[1,0,1],[1,1,1],[1,-1,1],[1,0,2],[1,1,2],[1,0,4],[1,-1,3]]; // 判別式<0
+var bt;
+function genFactorMonster(stage){
+  let c, structure;
+  if(stage===0){ // 2つの一次因数
+    let a=pick([-3,-2,-1,1,2,3]),b; do{b=pick([-3,-2,-1,1,2,3]);}while(b===a);
+    c=mul(lin(a),lin(b)); structure='linear';
+  }else if(stage===1||stage===2){ // 3つの一次因数（たまに重根）
+    const set=shuffle([-3,-2,-1,1,2,3]); let r=[set[0],set[1],set[2]];
+    if(Math.random()<.25)r=[set[0],set[0],set[1]]; // 重根
+    c=mul(mul(lin(r[0]),lin(r[1])),lin(r[2])); structure='linear';
+  }else{ // 一次 × 既約2次
+    const r=pick([-2,-1,1,2,3]); c=mul(lin(r),pick(irrQuads)); structure='hasIrr';
+  }
+  return {coeffs:c,structure};
+}
+function ch2(){ bt={stage:0,total:4,solved:0,hp:100,maxhp:100,subs:0}; ch2Battle(); }
+function ch2Battle(){
+  const m=genFactorMonster(bt.stage);
+  bt.original=m.coeffs.slice(); bt.current=m.coeffs.slice(); bt.factors=[];
+  bt.emoji=pick(monsters); bt.name=pick(monNames); bt.struct=m.structure;
+  renderBattle();
+  typeMsg(el('msg'),`<b class="info">${bt.name}</b> があらわれた！<br>「代入」で因数を見つけ、完全に分解せよ。`);
+}
+function renderBattle(updateMsg){
+  const cur=bt.current, cands=candidates(cur);
+  bt.cands=cands;
+  const sealTxt = bt.factors.length? '見つけた因数： '+bt.factors.join(' ') : '因数：？？？';
+  setScreen(`
+    <div class="top-bar"><span class="lvl">第2階 因数定理</span><span>体力 ${bt.hp} ・ ${bt.stage+1}/${bt.total}</span></div>
+    <div class="stage" id="stage">
+      <div class="monster-emoji">${bt.emoji}</div>
+      <div class="monster-name">${bt.name}（${deg(cur)}次）</div>
+      <div class="poly-label">いまの姿</div>
+      <div class="poly-card">${fmt(cur)}</div>
+      <div class="hpbar-wrap"><span>体力</span><div class="hpbar"><i style="width:${bt.hp}%"></i></div></div>
+      <div class="seals">${sealTxt}</div>
+    </div>
+    <div class="win msg" id="msg"></div>
+    <div class="hint">根の候補は <b>±(定数項の約数)/(最高次の約数)</b>。小さい数から代入で試そう。P(a)=0 なら (x−a) が因数！</div>
+    <div id="cmdarea"></div>`);
+  cmdMain();
+  if(updateMsg)typeMsg(el('msg'),updateMsg);
+}
+function cmdMain(){
+  el('cmdarea').innerHTML=`
+    <div class="cmds">
+      <button class="cmd" onclick="sfx.sel();cmdSubMenu()">⚔ 代入する</button>
+      <button class="cmd finish" onclick="ch2Finish()">★ とどめ<br><span style="font-size:11px">これ以上分解不可</span></button>
+    </div>
+    <button class="cmd wide" style="margin-top:10px;font-size:13px" onclick="sfx.sel();menu()">塔へもどる</button>`;
+}
+function cmdSubMenu(){
+  const cs=bt.cands;
+  el('cmdarea').innerHTML=`
+    <div class="center" style="font-size:12px;color:var(--dim);margin-bottom:6px">x に代入する値を選べ（根の候補）</div>
+    <div class="cmds">
+      ${cs.map((o,i)=>`<button class="cmd small" onclick="ch2Sub(${i})">${candLabel(o)}</button>`).join('')}
+    </div>
+    <button class="cmd wide" style="margin-top:10px;font-size:13px" onclick="sfx.sel();cmdMain()">もどる</button>`;
+}
+function ch2Sub(i){
+  const o=bt.cands[i]; bt.subs++;
+  const num=numerAt(bt.current,o.num,o.den);
+  if(num===0){
+    // 因数発見！
+    sfx.crit(); el('stage').classList.add('crit'); floatDmg('critd','0!');
+    const A=o.den, B=-o.num; const d=divLinear(bt.current,A,B);
+    const fStr=factorStr(o.num,o.den);
+    bt.factors.push(fStr);
+    bt.current=d.quotient.map(v=>Math.round(v*1e6)/1e6);
+    // 1次まで下がったら自動でとどめ
+    if(deg(bt.current)<=1){
+      // 残りの一次（または定数）も因数化
+      if(deg(bt.current)===1){
+        const lead=bt.current[0], cst=bt.current[1];
+        // 因数 (lead·x + cst) → 根 -cst/lead
+        bt.factors.push(factorStr(-cst, lead)); // 注意: factorStrは(den x − num)=（lead x + cst）になるよう num=-cst,den=lead
+      }
+      return ch2Win('clean');
+    }
+    renderBattle(`<b class="gold">会心の一撃！</b> <b class="good">P(${candPlain(o)})=0</b> だから ${fStr} は因数！<br>組立除法で割ると、姿が <b class="info">${fmt(bt.current)}</b> に。`);
+  }else{
+    // はずれ：余りを見せて反撃
+    sfx.no(); bt.hp=Math.max(0,bt.hp-15); el('stage').classList.add('shake');
+    const r=remFrac(bt.current,o.num,o.den);
+    floatDmg('hit','−15');
+    if(bt.hp<=0){ return gameOver('ch2()'); }
+    renderBattle(`余りは <b class="info">P(${candPlain(o)}) = ${frac(r.num,r.den)}</b>。0 ではないので因数ではない…<br><b class="bad">${bt.name}の反撃！</b> 体力 −15`);
+  }
+}
+function ch2Finish(){
+  sfx.sel();
+  const cur=bt.current;
+  if(deg(cur)===2 && irreducibleQ(cur)){
+    // 正解：既約2次が真の姿
+    sfx.crit(); el('stage') && el('stage').classList.add('crit');
+    bt.factors.push('('+fmt(cur)+')');
+    return ch2Win('irr');
+  }else if(deg(cur)<=1){
+    return ch2Win('clean');
+  }else{
+    sfx.no(); bt.hp=Math.max(0,bt.hp-20); 
+    if(bt.hp<=0)return gameOver('ch2()');
+    renderBattle(`<b class="bad">まだ分解できる！</b> ${deg(cur)}次の式には、まだ因数がひそんでいる。<br>体力 −20`);
+  }
+}
+function ch2Win(kind){
+  bt.solved++;
+  sfx.win();
+  const full = '<b class="gold">'+fmt(bt.original)+'</b> = '+bt.factors.join('');
+  setScreen(`
+    <div class="top-bar"><span class="lvl">第2階 因数定理</span><span>${bt.stage+1}/${bt.total}</span></div>
+    <div class="stage crit"><div class="monster-emoji">💥</div>
+      <div class="monster-name">${bt.name} を 倒した！</div>
+      <div class="poly-card" style="font-size:clamp(16px,5vw,22px);margin-top:14px">${full}</div>
+      <div class="seals" style="margin-top:10px">${kind==='irr'?'残った2次式は <b style="color:#fff">既約</b>（有理数では因数分解できない）':'すべて一次の因数に分解できた'}</div>
+    </div>
+    <div class="win msg" id="msg"></div>
+    <button class="cmd wide" id="next"></button>`);
+  typeMsg(el('msg'),`<b class="good">完全に分解した！</b> これが ${bt.name} の真の姿。<br>因数分解 ＝ モンスターを断ち切ること。`);
+  const b=el('next');
+  if(bt.stage+1>=bt.total){ b.textContent='第2階クリア！結果へ'; b.onclick=()=>{progress[2]=true;result('第2階クリア！','因数定理',bt.solved,bt.total,bt.subs,'ch2()');}; }
+  else { b.textContent='つぎの多項式へ'; b.onclick=()=>{sfx.sel();bt.stage++;ch2Battle();}; }
+}
+
+/* ============================================================
+   第3階：(ax−b) の余り ＆ 非モニック分解
+   ============================================================ */
+var c3;
+function ch3(){ c3={i:0,total:5,correct:0,tries:0}; ch3Next(); }
+function genAxb(){
+  // P(x) を (ax−b) で割った余り = P(b/a) を当てる
+  let c=[ri(1,3)]; const dg=ri(2,3); for(let k=0;k<dg;k++)c.push(ri(-4,4));
+  if(c[c.length-1]===0)c[c.length-1]=ri(1,3);
+  let a=pick([2,2,3]), b=pick([1,-1,2,-2,3]); // (ax−b)
+  if(gcd(a,b)!==1 && b!==0){a=2;b=pick([1,-1,3]);}
+  const r=remFrac(c,b,a);
+  // 誤答
+  let pool=[ {n:r.num,d:r.den} ];
+  const r2=remFrac(c,-b,a); pool.push({n:r2.num,d:r2.den});
+  const r3=remFrac(c,b,1); pool.push({n:r3.num,d:r3.den});
+  pool.push({n:r.num+a,d:r.den}); pool.push({n:r.num-1,d:r.den});
+  // dedup
+  const seen=new Set(); let opts=[];
+  for(const o of pool){const k=o.n+'/'+o.d; if(!seen.has(k)){seen.add(k);opts.push(o);} }
+  while(opts.length<4){const o={n:r.num+ri(-5,5),d:r.den};const k=o.n+'/'+o.d;if(!seen.has(k)){seen.add(k);opts.push(o);}}
+  opts=opts.slice(0,4); if(!opts.some(o=>o.n===r.num&&o.d===r.den))opts[0]={n:r.num,d:r.den};
+  return {coeffs:c,a,b,ans:r,opts:shuffle(opts)};
+}
+function ch3Next(){
+  if(c3.i>=c3.total){ progress[3]=true; return result('第3階クリア！','(ax−b)の余り',c3.correct,c3.total,c3.tries,'ch3()'); }
+  const p=genAxb(); c3.cur=p;
+  const divLabel='(' + p.a + 'x ' + (p.b>=0?'− '+p.b:'+ '+(-p.b)) + ')';
+  setScreen(`
+    <div class="top-bar"><span class="lvl">第3階 (ax−b)の余り</span><span>${c3.i+1}/${c3.total}</span></div>
+    <div class="stage" id="stage">
+      <div class="monster-emoji">${pick(monsters)}</div>
+      <div class="monster-name">分数の根をもつ多項式</div>
+      <div class="poly-card">P(x) = ${fmt(p.coeffs)}</div>
+      <div class="poly-label" style="margin-top:10px">わる式：<b style="color:#fff">${divLabel}</b></div>
+    </div>
+    <div class="win msg" id="msg"></div>
+    <div class="hint">(ax − b) で割った余りは <b>P(b/a)</b>。ここでは x に <b>${frac(p.b,p.a)}</b> を代入！</div>
+    <div class="cmds" id="cmds">
+      ${p.opts.map((o,idx)=>`<button class="cmd small" id="o${idx}" onclick="ch3Answer(${idx})">${frac(o.n,o.d)}</button>`).join('')}
+    </div>`);
+  typeMsg(el('msg'),`P(x) を ${divLabel} で割った余りは？　${frac(p.b,p.a)} を代入せよ。`);
+}
+function ch3Answer(idx){
+  const p=c3.cur,o=p.opts[idx]; c3.tries++;
+  document.querySelectorAll('#cmds .cmd').forEach(b=>b.onclick=null);
+  const correct=(o.n===p.ans.num&&o.d===p.ans.den);
+  if(correct){ sfx.crit(); c3.correct++; el('o'+idx).classList.add('correct'); el('stage').classList.add('crit'); floatDmg('critd','HIT!');
+    typeMsg(el('msg'),`<b class="good">会心！</b> 余り＝<b class="gold">P(${p.b}/${p.a}) = ${frac(p.ans.num,p.ans.den)}</b>。`,()=>nextBtn(()=>{c3.i++;ch3Next();}));
+  }else{ sfx.no(); el('o'+idx).classList.add('wrong'); el('stage').classList.add('shake');
+    document.querySelectorAll('#cmds .cmd').forEach((b,i)=>{const oo=p.opts[i];if(oo.n===p.ans.num&&oo.d===p.ans.den)b.classList.add('correct');});
+    typeMsg(el('msg'),`<b class="bad">ミス！</b> 正しくは <b class="gold">P(${p.b}/${p.a}) = ${frac(p.ans.num,p.ans.den)}</b>。`,()=>nextBtn(()=>{c3.i++;ch3Next();}));
+  }
+}
+
+/* ============================================================
+   第4階（ボス）：余りの決定
+   ============================================================ */
+var boss1;
+function boss(){
+  // P(x)を(x−a)で割ると余りm, (x−b)で割ると余りn。 (x−a)(x−b)で割った余り R(x)=px+q
+  let a=pick([1,-1,2,-2]), b; do{b=pick([1,-1,2,3,-3]);}while(b===a);
+  const p=ri(1,3)*(Math.random()<.5?1:-1), q=ri(-3,3);
+  const m=p*a+q, n=p*b+q; // R(a)=m, R(b)=n
+  boss1={a,b,p,q,m,n,step:0};
+  bossStep();
+}
+function divLab(r){return '(x ' + (r>=0?'− '+r:'+ '+(-r)) + ')';}
+function bossStep(){
+  const B=boss1;
+  const base=`
+    <div class="top-bar"><span class="lvl">第4階 BOSS 余りの決定</span><span>謎</span></div>
+    <div class="stage"><div class="monster-emoji">🗝️</div>
+      <div class="monster-name">余りの番人</div>
+      <div class="win tight" style="margin-top:10px;font-size:14px;text-align:left;border-width:2px">
+        ある多項式 P(x) を<br>
+        ・${divLab(B.a)} で割ると 余り <b style="color:var(--gold)">${B.m}</b><br>
+        ・${divLab(B.b)} で割ると 余り <b style="color:var(--gold)">${B.n}</b><br>
+        では <b style="color:var(--info)">${divLab(B.a)}${divLab(B.b)}</b> で割った余りは？
+      </div>
+    </div>`;
+  if(B.step===0){
+    setScreen(base+`
+      <div class="win msg" id="msg"></div>
+      <div class="hint">2次式で割った余りは何次以下？ 余りの次数を考えよう。</div>
+      <div class="cmds one" id="cmds">
+        <button class="cmd" onclick="bossA(0,0)">2次式 ax²+bx+c とおく</button>
+        <button class="cmd" onclick="bossA(0,1)">1次以下 px+q とおく</button>
+        <button class="cmd" onclick="bossA(0,2)">定数 q とおく</button>
+      </div>`);
+    typeMsg(el('msg'),'まず、求める余りをどんな式とおく？');
+  }else if(B.step===1){
+    setScreen(base+`
+      <div class="win msg" id="msg"></div>
+      <div class="hint">P(x)=${divLab(B.a)}${divLab(B.b)}Q(x)+px+q。剰余の定理で使える代入は？</div>
+      <div class="cmds one" id="cmds">
+        <button class="cmd" onclick="bossA(1,0)">x=${B.a} と x=${B.b} を代入</button>
+        <button class="cmd" onclick="bossA(1,1)">x=0 と x=1 を代入</button>
+        <button class="cmd" onclick="bossA(1,2)">微分して代入</button>
+      </div>`);
+    typeMsg(el('msg'),'R(x)=px+q の p, q を出すために、何を代入する？');
+  }else if(B.step===2){
+    // 連立 p*a+q=m, p*b+q=n の解を選ばせる
+    const opts=shuffle(uniq([
+      {p:B.p,q:B.q},{p:B.p,q:B.q+1},{p:-B.p,q:B.q},{p:B.p+1,q:B.q-1}
+    ].map(o=>JSON.stringify(o)))).map(s=>JSON.parse(s)).slice(0,4);
+    if(!opts.some(o=>o.p===B.p&&o.q===B.q))opts[0]={p:B.p,q:B.q};
+    setScreen(base+`
+      <div class="win msg" id="msg"></div>
+      <div class="hint">R(${B.a})=${B.m} → ${B.a}p+q=${B.m}　／　R(${B.b})=${B.n} → ${B.b}p+q=${B.n}。連立で解く。</div>
+      <div class="cmds" id="cmds">
+        ${opts.map((o,i)=>`<button class="cmd small" id="o${i}" onclick='bossSolve(${i},${JSON.stringify(o)})'>p=${o.p}, q=${o.q}</button>`).join('')}
+      </div>`);
+    typeMsg(el('msg'),`連立方程式 <b class="info">${B.a}p+q=${B.m}</b> と <b class="info">${B.b}p+q=${B.n}</b> を解くと？`);
+  }
+}
+function bossA(step,choice){
+  const B=boss1;
+  document.querySelectorAll('#cmds .cmd').forEach(b=>b.onclick=null);
+  const ok=(step===0&&choice===1)||(step===1&&choice===0);
+  if(ok){ sfx.ok(); B.step++; setTimeout(bossStep,250); }
+  else{
+    sfx.no(); el('cmds').children[choice].classList.add('wrong');
+    const fb = step===0
+      ? '<b class="bad">ちがう。</b> 2次式で割った余りは <b class="gold">1次以下</b>。だから px+q とおくのが正解。'
+      : '<b class="bad">ちがう。</b> わる式が 0 になる値、つまり <b class="gold">x='+B.a+', x='+B.b+'</b> を代入すると Q(x) の項が消える。';
+    typeMsg(el('msg'), fb, ()=>nextBtn(()=>{B.step++;bossStep();}));
+  }
+}
+function bossSolve(i,o){
+  const B=boss1;
+  document.querySelectorAll('#cmds .cmd').forEach(b=>b.onclick=null);
+  if(o.p===B.p&&o.q===B.q){
+    sfx.win(); el('o'+i).classList.add('correct');
+    const R=fmt([B.p,B.q]);
+    setScreen(`
+      <div class="stage crit"><div class="monster-emoji">✨🗝️✨</div>
+        <div class="monster-name">余りの番人を 解き明かした！</div>
+        <div class="poly-card" style="margin-top:14px">余り R(x) = ${R}</div>
+      </div>
+      <div class="win msg" id="msg"></div>
+      <button class="cmd wide" id="next">クリア！結果へ</button>`);
+    typeMsg(el('msg'),`<b class="good">正解！</b> R(${B.a})=${B.m}, R(${B.b})=${B.n} を満たす <b class="gold">px+q</b> はこれだけ。<br>剰余の定理を二度使う合わせ技、見事。`);
+    el('next').onclick=()=>{progress[4]=true;result('塔の頂上 到達！','余りの決定',1,1,0,'boss()');};
+  }else{
+    sfx.no(); el('o'+i).classList.add('wrong');
+    typeMsg(el('msg'),`<b class="bad">ちがう。</b> ${B.a}p+q=${B.m} と ${B.b}p+q=${B.n} を解くと <b class="gold">p=${B.p}, q=${B.q}</b>。`,()=>nextBtn(()=>boss()));
+  }
+}
+
+/* ============================================================
+   共通：次へボタン / ダメージ表示 / 結果 / ゲームオーバー
+   ============================================================ */
+function nextBtn(fn){
+  const area=el('cmds')||el('cmdarea');
+  if(!area)return;
+  area.innerHTML=`<button class="cmd wide" onclick="sfx.sel();(${fn.toString()})()">▼ つぎへ</button>`;
+}
+function floatDmg(cls,txt){
+  const s=el('stage'); if(!s)return;
+  const d=document.createElement('div'); d.className='dmg '+cls; d.textContent=txt; s.appendChild(d);
+  setTimeout(()=>d.remove(),900);
+}
+function rank(correct,total,extra){
+  const r=correct/total;
+  if(r>=1 && extra<=total+1)return 'S';
+  if(r>=0.8)return 'A';
+  if(r>=0.6)return 'B';
+  return 'C';
+}
+function result(title_,sub,correct,total,extra,retry){
+  const rk=rank(correct,total,extra);
+  const allClear=progress[1]&&progress[2]&&progress[3]&&progress[4];
+  setScreen(`
+    <div class="win center fadein" style="padding-top:24px">
+      <div style="color:var(--gold);font-size:20px">${title_}</div>
+      <div style="color:var(--dim);font-size:13px;margin:4px 0 10px">${sub}</div>
+      <div class="result-rank">${rk}</div>
+      <div style="font-size:14px;margin-top:6px">正解 ${correct} / ${total}${extra?'　・　手数 '+extra:''}</div>
+      ${rk==='S'?'<div style="color:var(--good);margin-top:8px">パーフェクト！代入の剣を極めた。</div>':''}
+    </div>
+    ${allClear?'<div class="win center" style="border-color:var(--gold);color:var(--gold)">🏆 全階クリア！剰余の塔を制覇した！</div>':''}
+    <div class="cmds">
+      <button class="cmd" onclick="sfx.sel();(${retry.replace(/[()]/g,'')})()">もう一度</button>
+      <button class="cmd" onclick="sfx.sel();menu()">塔へもどる</button>
+    </div>`);
+  sfx.win();
+}
+function gameOver(retry){
+  sfx.no();
+  setScreen(`
+    <div class="win center fadein" style="padding-top:30px">
+      <div class="monster-emoji" style="font-size:60px">💀</div>
+      <div style="color:var(--bad);font-size:22px;margin-top:8px">力つきた…</div>
+      <div style="color:var(--dim);font-size:13px;margin-top:8px">候補は小さい数から試すと、はずれが減って体力を保てる。</div>
+    </div>
+    <div class="cmds">
+      <button class="cmd" onclick="sfx.sel();(${retry.replace(/[()]/g,'')})()">もう一度</button>
+      <button class="cmd" onclick="sfx.sel();menu()">塔へもどる</button>
+    </div>`);
+}
+
+/* 起動 */
+goTitle();
+</script>
+</body>
+</html>
